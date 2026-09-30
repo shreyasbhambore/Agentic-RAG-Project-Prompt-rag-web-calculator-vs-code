@@ -1,0 +1,56 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    env_file:
+      - .env
+    environment:
+      CHROMA_PERSIST_DIRECTORY: /app/data/chroma
+      BM25_INDEX_PATH: /app/data/bm25/index.jsonl
+      EMBEDDING_CACHE_DIRECTORY: /app/data/models
+      DATABASE_URL: sqlite:////app/data/agentic_rag.db
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - app-data:/app/data
+      - ./data/books:/app/data/books:ro
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "${FRONTEND_PORT:-8501}:8501"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+volumes:
+  app-data:
